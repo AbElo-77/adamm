@@ -1,2 +1,3 @@
-# adamm
-Official respository for the ADAMM analysis toolkit
+# Augmented Dynamics and Analysis for Molecular Mechanics (ADAMM)
+
+*Placeholder*
