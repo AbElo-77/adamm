@@ -1,42 +1,42 @@
-from typing import List
-from core.execution import Executor
-from core.artifacts import Artifact, SimulationRun
+from typing import List, Any
+from core.artifacts import SimulationRun, LambdaWindow
+from core.graphs import GROMACS_RBFE_DAG
 from engines.gromacs.runner import GromacsRunner
 from provenance.store import ProvenanceStore
+from workflows.nodes.gromacs.simulation_run import SimulationRunNode
 from workflows.dags.rbfe_gro import build_rbfe_dag
 
 class RBFEWorkflow:
     def __init__(self, runner: GromacsRunner, prov_store: ProvenanceStore):
         self.runner = runner
         self.prov = prov_store
-        self.executor = Executor(prov_store=self.prov, cache_enabled=True)
 
     def run_simulation(
         self,
-        input_sets: List[Artifact],
+        input_sets: List[Any],
         lambdas: List[float]
     ) -> SimulationRun:
 
-        dag = build_rbfe_dag(
-            runner=self.runner,
-            prov_store=self.prov,
-            input_artifacts=input_sets,
-            lambdas=lambdas
-        )
+        if len(input_sets) != len(lambdas):
+            raise ValueError("input_sets and lambdas must have equal length")
 
-        all_artifacts = self.executor.execute_dag(
-            dag=dag,
-            initial_artifacts=input_sets
-        )
+        lws: List[LambdaWindow] = []
 
-        sim_runs = [
-            a for a in all_artifacts
-            if isinstance(a, SimulationRun)
-        ]
-
-        if len(sim_runs) != 1:
-            raise RuntimeError(
-                f"Expected exactly one SimulationRun, found {len(sim_runs)}"
+        for inputs, lam in zip(input_sets, lambdas):
+            dag = build_rbfe_dag(
+                runner=self.runner,
+                prov_store=self.prov,
+                input_artifacts=inputs,
+                lambdas=lam
             )
+            lw = dag.execute(inputs)
+            lws.append(lw)
 
-        return sim_runs[0]
+        sim_node = SimulationRunNode(
+            prov_store=self.prov,
+            engine="GROMACS",
+            engine_version=self.runner.detect_version()
+        )
+
+        return sim_node.execute(lws)
+

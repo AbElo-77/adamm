@@ -1,5 +1,5 @@
 import numpy as np
-from core.artifacts import EnergySeries, Trajectory, LogFile
+from core.artifacts import EnergySeries, Trajectory, FileRef
 
 def parse_xvg(
     filepath: str,  
@@ -33,12 +33,12 @@ def read_trajectory(
 
 def read_edr(
     filepath: str
-) -> LogFile: 
+) -> FileRef: 
     with open(filepath) as f: 
-        return f.read()
+        return FileRef(filepath)
 
 def read_log(
     filepath: str
-) -> LogFile: 
+) -> FileRef: 
     with open(filepath) as f: 
-        return f.read()
+        return FileRef(filepath)

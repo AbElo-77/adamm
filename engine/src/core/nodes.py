@@ -4,6 +4,10 @@ from core.artifacts import Artifact
 from provenance.store import ProvenanceStore
 from provenance.metadata import ArtifactMetadata
 
+
+"""
+This is the general wrapper class for any executation node.
+"""
 class Node:
     def __init__(self, name: str, prov_store: ProvenanceStore):
         self.name = name

@@ -3,6 +3,7 @@ import re
 import math
 from core.nodes import Node
 from core.artifacts import ThermodynamicState, FileRef
+from provenance.metadata import ArtifactMetadata
 
 K_BOLTZMANN = 0.008314462618
 
@@ -13,14 +14,22 @@ class ThermodynamicsNode(Node):
                          prov_store=prov_store)
         self.lambda_value = lambda_value
 
-    def run(self, inputs):
-        tpr_file = f"lambda_{self.lambda_value}.tpr"
+    """
+    inputs: FileRef; this is the path to the trajectory file
+    outputs: ThermodynamicState; this is the thermodynamic state being sampled. 
+    """
+    def run(self, inputs: FileRef) -> ThermodynamicState:
+        tpr_file = inputs.path
 
         thermodynamics = self.parse_tpr(tpr_file)
 
         self.prov.add_artifact(
             thermodynamics,
-            context={"lambda": self.lambda_value}
+            metadata=ArtifactMetadata(
+                created_by=self.name,
+                engine="GROMACS"
+            ),
+            parents=[inputs]
         )
 
         return thermodynamics
@@ -33,22 +42,17 @@ class ThermodynamicsNode(Node):
         lambda_value = self._parse_lambda(dump_text)
         ensemble = self._parse_ensemble(dump_text)
         softcore = self._parse_softcore(dump_text)
-        neighbors = self._parse_lambda_neighbors(dump_text)
         constraints = self._parse_constraints(dump_text)
 
         beta = 1.0 / (K_BOLTZMANN * temperature)\
         
-        # need to change so that this is stored in the prov instead of returned
         return ThermodynamicState(
             temperature=temperature,
             beta=beta,
             lambda_value=lambda_value,
             ensemble=ensemble,
             softcore=softcore,
-            calc_lambda_neighbors=neighbors,
             constraints=constraints,
-            engine="gromacs",
-            engine_version=self._parse_gromacs_version(dump_text),
             source_tpr=FileRef(path=source_file)
         )
 
@@ -85,10 +89,6 @@ class ThermodynamicsNode(Node):
         lambda_values = [float(x) for x in lambdas.group(1).split()]
         return lambda_values[lambda_state]
 
-    def _parse_lambda_neighbors(self, text: str) -> int:
-        match = re.search(r"calc_lambda_neighbors\s+=\s+(\d+)", text)
-        return int(match.group(1)) if match else 0
-
     def _parse_softcore(self, text: str) -> dict:
         params = {}
         for key in ["sc_alpha", "sc_power", "sc_sigma"]:
@@ -107,7 +107,3 @@ class ThermodynamicsNode(Node):
         if "nose-hoover" in text.lower():
             return "NVT"
         return "unknown"
-
-    def _parse_gromacs_version(self, text: str) -> str:
-        match = re.search(r"GROMACS version:\s+([^\n]+)", text)
-        return match.group(1).strip() if match else "unknown"

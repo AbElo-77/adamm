@@ -8,6 +8,7 @@ import numpy as np
 
 from core.nodes import Node
 from core.artifacts import EnergySeries, FileRef, ThermodynamicState
+from provenance.metadata import ArtifactMetadata
 from engines.gromacs.outputs import parse_xvg
 
 
@@ -33,7 +34,11 @@ class EnergyExtractionNode(Node):
             "delta_h_backward": "ΔH λ→λ-1",
         }
 
-    def run(self, inputs: Dict[str, object]) -> List[EnergySeries]:
+    """
+    inputs: Dict[str, object] containing FileRefs to the energy and trajectory files. 
+    outputs: Dict[str, EnergySeries]; this contains the potential, dH/dl, dh_f, and dh_b.
+    """
+    def run(self, inputs: Dict[str, object]) -> Dict[str, EnergySeries]:
         
         edr_file: str = inputs["edr_file"]
         tpr_file: str = inputs["tpr_file"]
@@ -43,7 +48,7 @@ class EnergyExtractionNode(Node):
 
         extracted = self._run_gmx_energy(edr_file)
 
-        artifacts: List[EnergySeries] = []
+        artifacts: Dict[str, EnergySeries] = []
 
         for logical_name, series in extracted.items():
             artifact = EnergySeries(
@@ -59,10 +64,14 @@ class EnergyExtractionNode(Node):
                 },
             )
             self.prov.add_artifact(
-                artifact,
-                context={"lambda": self.lambda_value, "term": logical_name},  # need to implement this
+                artifact,            
+                metadata=ArtifactMetadata(
+                created_by=self.name,
+                engine="GROMACS"
+                ),
+                parents=list(inputs)
             )
-            artifacts.append(artifact)
+            artifacts[logical_name] = artifact
 
         return artifacts
 

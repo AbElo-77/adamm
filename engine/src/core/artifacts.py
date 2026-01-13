@@ -6,6 +6,11 @@ import hashlib
 import json
 import numpy as np
 
+from engines.gromacs.inputs import GROMACSInputs
+
+"""
+This is the general wrapper class for any object producted during the ADAMM lifecylce. 
+"""
 @dataclass(frozen=True)
 class Artifact:
     def fingerprint(self) -> str:
@@ -19,7 +24,10 @@ class Artifact:
 
     def to_dict(self) -> Dict[str, Any]:
         raise NotImplementedError("")
-    
+
+"""
+This artifact stores the path to a file of interest, including trajectories and energies. 
+"""   
 @dataclass(frozen=True)
 class FileRef(Artifact):
     path: str
@@ -31,22 +39,44 @@ class FileRef(Artifact):
             "checksum": self.checksum,
         }
 
+"""
+This artifact stores trajectory information. 
+
+    file_ref -> path to trajectory
+    traj_type -> type of trajectory file
+    lambda_value -> the lambda
+    atom_count -> number of atoms
+    frame_count -> number of frames 
+    time_step_ps -> timestep in picoseconds
+"""
 @dataclass(frozen=True)
 class Trajectory(Artifact):
     file_ref: FileRef
+    traj_type: str = '.trr'
+    lambda_value: float
     atom_count: int
-    traj_type: str = '.gro'
     frame_count: Optional[int] = None
     time_step_ps: Optional[float] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "file_ref": self.file_ref.to_dict(),
+            "traj_type": self.traj_type,
+            "lambda_value": self.lambda_value,
             "atom_count": self.atom_count,
             "frame_count": self.frame_count,
             "time_step_ps": self.time_step_ps,
         }
-    
+
+"""
+this artifact stores energy information from the *.edr file. 
+
+    values -> the values for each frame of the specific energy data. 
+    units -> the units for the specific energy. 
+    sampling_interval -> how often the energy value is sampled. 
+    source_file -> path to *.edr
+    metadata -> (term, lambda, thermodynamic_state)
+"""   
 @dataclass(frozen=True)
 class EnergySeries(Artifact):
     values: np.ndarray
@@ -63,7 +93,18 @@ class EnergySeries(Artifact):
             "source_file": self.source_file.to_dict(),
             "metadata": self.metadata,
         }
-    
+
+"""
+This artifact stores thermodynamic information from the *.tpr file
+
+    temperature -> initial state temperature
+    beta -> 1/(k_boltzmann * temperature)
+    lambda_value -> the lambda
+    ensemble -> the type of ensemble (NVT or NPT)
+    softcore -> sc parameters for free energy calculations
+    constraints -> constraint parameters
+    source_tpr -> path to *.tpr
+"""    
 @dataclass(frozen=True)
 class ThermodynamicState(Artifact):
     temperature: float
@@ -71,10 +112,7 @@ class ThermodynamicState(Artifact):
     lambda_value: float
     ensemble: str
     softcore: dict
-    calc_lambda_neighbors: int
     constraints: str
-    engine: str
-    engine_version: str
     source_tpr: FileRef
 
     def to_dict(self):
@@ -84,14 +122,19 @@ class ThermodynamicState(Artifact):
             "lambda_value": self.lambda_value,
             "ensemble": self.ensemble,
             "softcore": self.softcore,
-            "calc_lambda_neighbors": self.calc_lambda_neighbors,
             "constraints": self.constraints,
-            "engine": self.engine,
-            "engine_version": self.engine_version,
             "source_tpr": self.source_tpr.to_dict(),
         }
 
+"""
+This artifact stores the trajectory, energy, and thermodynamics of a single lambda.
 
+    lambda_value -> the lambda
+    thermodynamics -> the ThermodynamicState
+    energy_series -> the array of EnergySeries
+    trajectory -> the trajectory file (.trr / .xtc)
+    exchange_acceptance -> exchange rate if performing REMD or alchemical enhanced sampling
+"""
 @dataclass(frozen=True)
 class LambdaWindow(Artifact):
     lambda_value: float
@@ -111,6 +154,9 @@ class LambdaWindow(Artifact):
             "exchange_acceptance": self.exchange_acceptance,
         }
 
+"""
+This artifact stores the protein name and the path to its .pdb
+"""
 @dataclass(frozen=True)
 class Protein(Artifact):
     name: str
@@ -122,6 +168,9 @@ class Protein(Artifact):
             "file_ref": self.file_ref.to_dict(),
         }
 
+"""
+This artifact stores the ligand name and the path to its .pdb, along with its net_charge. 
+"""
 @dataclass(frozen=True)
 class Ligand(Artifact):
     name: str
@@ -135,6 +184,15 @@ class Ligand(Artifact):
             "net_charge": self.net_charge,
         }
 
+"""
+This artifact stores the mapping between the two ligands when performing RBFE. 
+
+    ligand_a -> first ligand
+    ligand_b -> second ligand 
+    atom_map -> the atom_map used for alchemical transformations
+    method -> technique used to generate atom_map***
+    source_file -> path to mapping file
+"""
 @dataclass(frozen=True)
 class Mapping(Artifact):
     ligand_a: Ligand
@@ -151,86 +209,21 @@ class Mapping(Artifact):
             "method": self.method,
             "source_file": self.source_file.to_dict() if self.source_file else None,
         }
-    
-@dataclass(frozen=True)
-class ReducedPotentialDataset(Artifact):
-    u_kn: np.ndarray
-    sample_state_indices: np.ndarray
-    state_fingerprints: List[str]
-    source_runs: List[str]
-    truncation_policy: Dict[str, Any]
 
-    def to_dict(self):
-        return {
-            "u_kn": self.u_kn.tolist(),
-            "sample_state_indices": self.sample_state_indices.tolist(),
-            "state_fingerprints": self.state_fingerprints,
-            "source_runs": self.source_runs,
-            "truncation_policy": self.truncation_policy,
-        }
-    
-@dataclass(frozen=True)
-class SampleSelection(Artifact):
-    total_samples: int
-    discarded_equilibration: int
-    thinning_interval: Optional[int]
-    selection_method: str
-    rationale: str
+"""
+This artifact stores the entire RBFE simulation ran. 
 
-    def to_dict(self):
-        return {
-            "total_samples": self.total_samples,
-            "discarded_equilibration": self.discarded_equilibration,
-            "thinning_interval": self.thinning_interval,
-            "selection_method": self.selection_method,
-            "rationale": self.rationale,
-        }
-
-@dataclass(frozen=True)
-class EstimatorRun(Artifact):
-    method: str 
-    input_dataset: ReducedPotentialDataset
-    sample_selection: SampleSelection
-    parameters: Dict[str, Any]
-    solver_settings: Dict[str, Any]
-    converged: bool
-    iterations: Optional[int]
-    residual: Optional[float]
-
-    def to_dict(self):
-        return {
-            "method": self.method,
-            "input_dataset": self.input_dataset.fingerprint(),
-            "sample_selection": self.sample_selection.fingerprint(),
-            "parameters": self.parameters,
-            "solver_settings": self.solver_settings,
-            "converged": self.converged,
-            "iterations": self.iterations,
-            "residual": self.residual,
-        }
-    
-@dataclass(frozen=True)
-class FreeEnergyEstimate(Artifact):
-    value: float
-    uncertainty: float
-    units: str
-    reference_states: Tuple[str, str]
-    estimator_run: EstimatorRun
-
-    def to_dict(self):
-        return {
-            "value": self.value,
-            "uncertainty": self.uncertainty,
-            "units": self.units,
-            "reference_states": self.reference_states,
-            "estimator_run": self.estimator_run.fingerprint(),
-        }
-    
+    engine -> the engine used to run the simulations (e.g. GROMACS)
+    engine_version -> the version of the engine
+    input_files -> the GROMACSInputs
+    lambda_windows -> the set of LambdaWindows in the simulation
+    log_file -> path to the log file
+"""   
 @dataclass(frozen=True)
 class SimulationRun(Artifact):
     engine: str
     engine_version: str
-    input_files: Dict[str, FileRef]
+    input_files: GROMACSInputs
     lambda_windows: list[LambdaWindow]
     log_file: Optional[FileRef]
     start_time: Optional[str]
@@ -248,7 +241,10 @@ class SimulationRun(Artifact):
             "end_time": self.end_time,
             "wall_clock_seconds": self.wall_clock_seconds
         }
-    
+
+"""
+This artifact stores a diagnostic result.
+"""   
 @dataclass(frozen=True)
 class DiagnosticResult(Artifact):
     name: str
@@ -266,6 +262,9 @@ class DiagnosticResult(Artifact):
             "source_run": self.source_run.fingerprint(),
         }
 
+"""
+This artifact stores the ultimate decision record.
+"""
 @dataclass(frozen=True)
 class DecisionRecord(Artifact):
     decision_type: str 

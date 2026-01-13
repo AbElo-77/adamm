@@ -8,11 +8,14 @@ class GromppNode(Node):
         self.runner = runner
         self.lambda_value = lambda_value
 
+    """
+    inputs: GROMACSInputs; this is the user-defined input to the process. 
+    outputs: FileRef; this is the path to the trajectory.
+    """
     def run(self, inputs):
-        input_set = inputs[0]
         tpr_file = f"lambda_{self.lambda_value}.tpr"
 
-        result = self.runner.run_grompp(input_set, tpr_file)
+        result = self.runner.run_grompp(inputs, tpr_file)
 
         tpr = FileRef(tpr_file)
         self.prov.add_artifact(

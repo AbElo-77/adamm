@@ -1,20 +1,11 @@
+import numpy as np
+
 from dataclasses import dataclass
-from typing import Dict
-from core.artifacts import EnergySeries
+from typing import Dict, List, Optional, Any
+from core.artifacts import Artifact, EnergySeries, ThermodynamicState
 from core.nodes import Node
-from utils.components import Samples
-
-@dataclass
-class Estimate:
-    value: float
-    stderr: float
-    estimator: str
-    metadata: dict
-
-class Estimator:
-    def estimate(self, fingerprint) -> Estimate:
-        raise NotImplementedError("Subclasses must implement estimate().")
-
+from utils.components import Samples, FreeEnergyEstimate, ReducedPotentialDataset
+    
 """
 Apply burn-in before sampling; determine g per energy type. 
 Determine N_eff as len(energy["potential"]) / g. 
@@ -54,14 +45,70 @@ class SampleSelection(Node):
     def sample_energies_thin(self, energies, thermodynamic_state, g) -> Dict[str, EnergySeries]:
         pass
 
+class ReducedPotentialBuilder(Node): 
+    def __init__(self, prov_store): 
+        super.__init__(name="reduced_potential_builder", prov=prov_store)
+        self.prov = prov_store
+    
+    def generate_dataset(self, 
+            samples: List[Samples], 
+            energies: List[List[EnergySeries]], 
+            thermodynamics: List[ThermodynamicState]
+        ) -> ReducedPotentialDataset:
+        pass
+        
+
+"""
+
+"""
+class Estimator:
+    def estimate(self, fingerprint) -> FreeEnergyEstimate:
+        raise NotImplementedError("Subclasses must implement estimate().")
+
+"""
+
+"""
 class BAR(Estimator): 
+
     def estimate(self, fingerprints: Dict[str, str]):
         pass
 
+"""
+
+"""
 class TI(Estimator): 
     def estimate(self, fingerprints: Dict[str, str]):
         pass
 
+"""
+
+"""
 class MBAR(Estimator): 
     def estimate(self, fingerprint:  Dict[str, str]):
         pass
+
+"""
+
+"""
+@dataclass(frozen=True)
+class EstimatorRun(Artifact):
+    estimator: Estimator
+    input_dataset: ReducedPotentialDataset
+    sample_selection: Samples
+    parameters: Dict[str, Any]
+    solver_settings: Dict[str, Any]
+    converged: bool
+    iterations: Optional[int]
+    residual: Optional[float]
+
+    def to_dict(self):
+        return {
+            "estimator": self.estimator,
+            "input_dataset": self.input_dataset.fingerprint(),
+            "sample_selection": self.sample_selection.fingerprint(),
+            "parameters": self.parameters,
+            "solver_settings": self.solver_settings,
+            "converged": self.converged,
+            "iterations": self.iterations,
+            "residual": self.residual,
+        }

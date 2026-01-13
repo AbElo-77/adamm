@@ -1,5 +1,6 @@
+from typing import List
 from core.nodes import Node
-from core.artifacts import SimulationRun
+from core.artifacts import LambdaWindow, SimulationRun
 from datetime import datetime
 
 class SimulationRunNode(Node):
@@ -8,8 +9,12 @@ class SimulationRunNode(Node):
         self.engine = engine
         self.engine_version = engine_version
 
-    def run(self, inputs):
-        start = datetime.utcnow().isoformat()
+    """
+    inputs: List[LambdaWindows]; this is the simulation for each lambda. 
+    outputs: SimulationRun; this is the entire RBFE simulation, including metadata.
+    """
+    def run(self, inputs: List[LambdaWindow]):
+        start = datetime.now().isoformat()
         sim = SimulationRun(
             engine=self.engine,
             engine_version=self.engine_version,

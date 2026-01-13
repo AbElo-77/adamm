@@ -1,12 +1,17 @@
+from typing import List
 from core.nodes import Node
-from core.artifacts import LambdaWindow
+from core.artifacts import Artifact, LambdaWindow
 
 class LambdaWindowNode(Node):
     def __init__(self, prov_store, lambda_value: float):
         super().__init__(name=f"lambda_window_{lambda_value}", prov_store=prov_store)
         self.lambda_value = lambda_value
 
-    def run(self, inputs):
+    """
+    inputs: List[Artifacts] containing the trajectory, energies, and thermodynamics. 
+    outputs: LambdaWindow representing the entire simulation for this lambda. 
+    """
+    def run(self, inputs: List[Artifact]):
         traj, energy, thermodynamics = inputs
 
         lw = LambdaWindow(
