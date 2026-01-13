@@ -1,0 +1,32 @@
+from core.nodes import Node
+from core.artifacts import FileRef
+from provenance.metadata import ArtifactMetadata
+
+class GromppNode(Node):
+    def __init__(self, runner, prov_store, lambda_value: float):
+        super().__init__(name=f"grompp_lambda_{lambda_value}", prov_store=prov_store)
+        self.runner = runner
+        self.lambda_value = lambda_value
+
+    def run(self, inputs):
+        input_set = inputs[0]
+        tpr_file = f"lambda_{self.lambda_value}.tpr"
+
+        result = self.runner.run_grompp(input_set, tpr_file)
+
+        tpr = FileRef(tpr_file)
+        self.prov.add_artifact(
+            tpr,
+            metadata=ArtifactMetadata(
+                created_by=self.name,
+                created_at=result.start_time,
+                engine="GROMACS",
+                engine_version=self.runner._detect_version,
+                extra={
+                    "exit_code": result.returncode,
+                    "stderr": result.stderr
+                }
+            ),
+            parents=inputs
+        )
+        return [tpr]

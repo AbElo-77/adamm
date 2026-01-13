@@ -1,7 +1,7 @@
 import subprocess
 from dataclasses import dataclass
-from typing import List, Optional
-from datetime import datetime
+from typing import List
+from .inputs import GROMACSInputs, GROMACSExecution
 
 @dataclass(frozen=True)
 class CommandResult:
@@ -9,14 +9,11 @@ class CommandResult:
     returncode: int
     stdout: str
     stderr: str
-    start_time: str
-    end_time: str
 
 class GromacsRunner:
 
-    def __init__(self, options):
+    def __init__(self, options: GROMACSExecution):
         self.options = options
-        self.engine_version = self._detect_version()
 
     def _detect_version(self) -> str:
         try:
@@ -29,15 +26,53 @@ class GromacsRunner:
         except Exception:
             return "unknown"
 
+    def run_grompp(
+        self,
+        inputs: GROMACSInputs,
+        output_tpr: str
+    ) -> CommandResult:
+        cmd = [
+            self.options.gmx_binary, "grompp",
+            "-f", inputs.mdp.source_file,
+            "-c", inputs.structure_file,
+            "-p", inputs.topology_file,
+            "-o", output_tpr,
+        ]
+
+        if inputs.index_file:
+            cmd.extend(["-n", inputs.index_file])
+
+        return self._execute(cmd)
+
+    def run_mdrun(
+        self,
+        tpr_file: str,
+        deffnm: str
+    ) -> CommandResult:
+        cmd = [
+            self.options.gmx_binary, "mdrun",
+            "-s", tpr_file,
+            "-deffnm", deffnm,
+        ]
+
+        if self.options.ntmpi:
+            cmd.extend(["-ntmpi", str(self.options.ntmpi)])
+
+        if self.options.ntomp:
+            cmd.extend(["-ntomp", str(self.options.ntomp)])
+
+        return self._execute(cmd)
+    
     def _execute(self, cmd: List[str]) -> CommandResult:
-        start = datetime.now().isoformat()
-        proc = subprocess.run(cmd, capture_output=True, text=True)
-        end = datetime.now().isoformat()
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True
+        )
+
         return CommandResult(
             command=cmd,
             returncode=proc.returncode,
             stdout=proc.stdout,
-            stderr=proc.stderr,
-            start_time=start,
-            end_time=end
+            stderr=proc.stderr
         )

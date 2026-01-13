@@ -63,10 +63,39 @@ class EnergySeries(Artifact):
             "source_file": self.source_file.to_dict(),
             "metadata": self.metadata,
         }
+    
+@dataclass(frozen=True)
+class ThermodynamicState(Artifact):
+    temperature: float
+    beta: float
+    lambda_value: float
+    ensemble: str
+    softcore: dict
+    calc_lambda_neighbors: int
+    constraints: str
+    engine: str
+    engine_version: str
+    source_tpr: FileRef
+
+    def to_dict(self):
+        return {
+            "temperature": self.temperature,
+            "beta": self.beta,
+            "lambda_value": self.lambda_value,
+            "ensemble": self.ensemble,
+            "softcore": self.softcore,
+            "calc_lambda_neighbors": self.calc_lambda_neighbors,
+            "constraints": self.constraints,
+            "engine": self.engine,
+            "engine_version": self.engine_version,
+            "source_tpr": self.source_tpr.to_dict(),
+        }
+
 
 @dataclass(frozen=True)
 class LambdaWindow(Artifact):
     lambda_value: float
+    thermodynamics: ThermodynamicState
     energy_series: Dict[str, EnergySeries]
     trajectory: Optional[Trajectory]
     exchange_acceptance: Optional[float] = None
@@ -74,6 +103,7 @@ class LambdaWindow(Artifact):
     def to_dict(self) -> Dict[str, Any]:
         return {
             "lambda_value": self.lambda_value,
+            "thermodynamic_state": self.thermodynamics,
             "energy_series": {
                 k: v.to_dict() for k, v in self.energy_series.items()
             },
@@ -121,7 +151,81 @@ class Mapping(Artifact):
             "method": self.method,
             "source_file": self.source_file.to_dict() if self.source_file else None,
         }
+    
+@dataclass(frozen=True)
+class ReducedPotentialDataset(Artifact):
+    u_kn: np.ndarray
+    sample_state_indices: np.ndarray
+    state_fingerprints: List[str]
+    source_runs: List[str]
+    truncation_policy: Dict[str, Any]
 
+    def to_dict(self):
+        return {
+            "u_kn": self.u_kn.tolist(),
+            "sample_state_indices": self.sample_state_indices.tolist(),
+            "state_fingerprints": self.state_fingerprints,
+            "source_runs": self.source_runs,
+            "truncation_policy": self.truncation_policy,
+        }
+    
+@dataclass(frozen=True)
+class SampleSelection(Artifact):
+    total_samples: int
+    discarded_equilibration: int
+    thinning_interval: Optional[int]
+    selection_method: str
+    rationale: str
+
+    def to_dict(self):
+        return {
+            "total_samples": self.total_samples,
+            "discarded_equilibration": self.discarded_equilibration,
+            "thinning_interval": self.thinning_interval,
+            "selection_method": self.selection_method,
+            "rationale": self.rationale,
+        }
+
+@dataclass(frozen=True)
+class EstimatorRun(Artifact):
+    method: str 
+    input_dataset: ReducedPotentialDataset
+    sample_selection: SampleSelection
+    parameters: Dict[str, Any]
+    solver_settings: Dict[str, Any]
+    converged: bool
+    iterations: Optional[int]
+    residual: Optional[float]
+
+    def to_dict(self):
+        return {
+            "method": self.method,
+            "input_dataset": self.input_dataset.fingerprint(),
+            "sample_selection": self.sample_selection.fingerprint(),
+            "parameters": self.parameters,
+            "solver_settings": self.solver_settings,
+            "converged": self.converged,
+            "iterations": self.iterations,
+            "residual": self.residual,
+        }
+    
+@dataclass(frozen=True)
+class FreeEnergyEstimate(Artifact):
+    value: float
+    uncertainty: float
+    units: str
+    reference_states: Tuple[str, str]
+    estimator_run: EstimatorRun
+
+    def to_dict(self):
+        return {
+            "value": self.value,
+            "uncertainty": self.uncertainty,
+            "units": self.units,
+            "reference_states": self.reference_states,
+            "estimator_run": self.estimator_run.fingerprint(),
+        }
+    
 @dataclass(frozen=True)
 class SimulationRun(Artifact):
     engine: str

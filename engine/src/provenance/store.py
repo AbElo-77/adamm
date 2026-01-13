@@ -3,7 +3,6 @@ import json
 from pathlib import Path
 from typing import Optional, Dict
 from core.artifacts import Artifact
-from .hashing import fingerprint
 from .lineage import LineageRecord
 from .metadata import ArtifactMetadata
 

@@ -1,29 +1,40 @@
-from typing import List
+from core.graphs import DAG
 from core.nodes import Node
 from core.artifacts import Artifact
 from provenance.store import ProvenanceStore
+from typing import List
 
 class Executor:
     def __init__(self, prov_store: ProvenanceStore, cache_enabled: bool = True):
         self.prov = prov_store
         self.cache_enabled = cache_enabled
 
-    def run_node(self, node: Node, inputs: List[Artifact]) -> List[Artifact]:
-        cache_fp = "-".join([i.fingerprint() for i in inputs] + [node.name])
-        if self.cache_enabled:
-            cached = self.prov.get_artifact(cache_fp)
-            if cached:
-                print(f"[INFO] Node {node.name} skipped due to cache")
-                return cached
+    def execute_dag(
+        self,
+        dag: DAG,
+        initial_artifacts: List[Artifact]
+    ) -> List[Artifact]:
+        artifacts = list(initial_artifacts)
 
-        outputs = node.execute(inputs)
-        if self.cache_enabled and outputs:
-            self.prov.add_artifact(outputs[0]) 
-        return outputs
+        executed = set()
 
-    def run_graph(self, nodes: List[Node], inputs: List[Artifact] = None) -> List[Artifact]:
-        all_artifacts = inputs or []
-        for node in nodes:
-            node_outputs = self.run_node(node, all_artifacts)
-            all_artifacts.extend(node_outputs)
-        return all_artifacts
+        while len(executed) < len(dag.nodes):
+            progress = False
+
+            for node in dag.nodes:
+                if node in executed:
+                    continue
+
+                parents = dag.dependencies.get(node, [])
+                if not all(p in executed for p in parents):
+                    continue
+
+                outputs = node.execute(artifacts)
+                artifacts.extend(outputs)
+                executed.add(node)
+                progress = True
+
+            if not progress:
+                raise RuntimeError("DAG execution stalled (cycle or missing dependency)")
+
+        return artifacts

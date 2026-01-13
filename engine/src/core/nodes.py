@@ -32,6 +32,4 @@ class Node:
         return outputs
 
     def run(self, inputs: List[Artifact]) -> List[Artifact]:
-        raise NotImplementedError("Node.run() must be implemented")
-    
-
+        raise NotImplementedError("Subclasses must implement the run method.")

@@ -31,6 +31,12 @@ def read_trajectory(
         traj_type=traj_type
     )
 
+def read_edr(
+    filepath: str
+) -> LogFile: 
+    with open(filepath) as f: 
+        return f.read()
+
 def read_log(
     filepath: str
 ) -> LogFile: 
