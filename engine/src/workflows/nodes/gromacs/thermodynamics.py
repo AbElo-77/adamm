@@ -1,9 +1,8 @@
 import subprocess
 import re
-import math
-from core.nodes import Node
-from core.artifacts import ThermodynamicState, FileRef
-from provenance.metadata import ArtifactMetadata
+from engine.src.core.nodes import Node
+from engine.src.core.artifacts import ThermodynamicState, FileRef
+from engine.src.provenance.metadata import ArtifactMetadata
 
 K_BOLTZMANN = 0.008314462618
 
@@ -18,7 +17,14 @@ class ThermodynamicsNode(Node):
     inputs: FileRef; this is the path to the trajectory file
     outputs: ThermodynamicState; this is the thermodynamic state being sampled. 
     """
-    def run(self, inputs: FileRef) -> ThermodynamicState:
+    def run(self, inputs: list[FileRef]) -> ThermodynamicState:
+
+        if len(inputs) != 1:
+            raise ValueError("ThermodynamicsNode expects a single FileRef as input.")
+        
+        if not isinstance(inputs[0], FileRef):
+            inputs = inputs[0][0]
+        
         tpr_file = inputs.path
 
         thermodynamics = self.parse_tpr(tpr_file)

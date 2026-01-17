@@ -2,7 +2,7 @@ import os
 import json
 from pathlib import Path
 from typing import Optional, Dict
-from core.artifacts import Artifact
+from engine.src.core.artifacts import Artifact
 from .lineage import LineageRecord
 from .metadata import ArtifactMetadata
 
@@ -24,6 +24,7 @@ class ProvenanceStore:
         artifact_path.write_text(json.dumps(artifact.to_dict(), indent=2))
 
         meta = metadata.to_dict() if metadata else {}
+        print(meta)
         meta_path = self.root / f"{fp}.meta.json"
         meta_path.write_text(json.dumps(meta, indent=2))
 

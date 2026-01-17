@@ -292,6 +292,14 @@ class Estimator:
     def estimate(self, inputs: ReducedPotentialDataset) -> FreeEnergyEstimate:
         raise NotImplementedError("Subclasses must implement estimate().")
 
+def fermi(x):
+    return 1.0 / (1.0 + np.exp(x))
+
+def bar_objective(delta_f, du_ab, du_ba):
+    lhs = np.sum(fermi(du_ab - delta_f))
+    rhs = np.sum(fermi(du_ba + delta_f))
+    return lhs - rhs
+
 """
 This class estimates free energy with Bennet's Acceptance Ratio (BAR).
 
@@ -300,9 +308,72 @@ This class estimates free energy with Bennet's Acceptance Ratio (BAR).
     outputs: FreeEnergyEstimate
 """
 class BAR(Estimator): 
+    def __init__(self, prov_store):
+        super().__init__(name="bar_estimator", prov=prov_store)
 
-    def estimate(self, inputs: ReducedPotentialDataset) -> FreeEnergyEstimate:
-        pass
+    def run(self, dataset: ReducedPotentialDataset):
+        u_kn = dataset.u_kn
+        K = u_kn.shape[0]
+
+        delta_fs = []
+        variances = []
+
+        for i in range(K - 1):
+            df, var = self.solve_pair(u_kn, i, i + 1)
+            delta_fs.append(df)
+            variances.append(var)
+
+        total_df = np.sum(delta_fs)
+        total_var = np.sum(variances)
+
+        estimate = FreeEnergyEstimate(
+            value=total_df,
+            stderr=np.sqrt(total_var),
+            estimator="BAR",
+            dataset=dataset,
+            samples=dataset.samples,
+            reference_state=dataset.samples[0]
+        )
+
+        self.prov.add_artifact(estimate, parents=[dataset])
+        return [estimate]
+    
+    def solve_pair(self, u_kn: np.ndarray, i: int, j: int):
+
+        u_i = u_kn[i]
+        u_j = u_kn[j]
+
+        mask_i = ~np.isnan(u_i) & ~np.isnan(u_j)
+        mask_j = mask_i
+
+        du_ab = u_j[mask_i] - u_i[mask_i]
+        du_ba = -du_ab
+
+        df = self.find_root(du_ab, du_ba)
+        var = self.bar_variance(du_ab, du_ba, df)
+
+        return df, var
+    
+    def find_root(self, du_ab, du_ba):
+        lo, hi = -50.0, 50.0
+
+        for _ in range(100):
+            mid = 0.5 * (lo + hi)
+            val = bar_objective(mid, du_ab, du_ba)
+
+            if val > 0:
+                lo = mid
+            else:
+                hi = mid
+
+        return 0.5 * (lo + hi)
+    
+    def bar_variance(self, du_ab, du_ba, df):
+        f_ab = fermi(du_ab - df)
+        f_ba = fermi(du_ba + df)
+
+        denom = np.sum(f_ab * (1 - f_ab)) + np.sum(f_ba * (1 - f_ba))
+        return 1.0 / denom
 
 """
 This class estimates free energy with Multistate Bennet's Acceptance Ratio (MBAR).
@@ -313,7 +384,7 @@ This class estimates free energy with Multistate Bennet's Acceptance Ratio (MBAR
 """
 class MBAR(Estimator): 
     def estimate(self, inputs: ReducedPotentialDataset) -> FreeEnergyEstimate:
-        pass
+        pass  # Will implement with OpenMM integration..
 
 """
 This class estiamtes free energy with thermodynamic integration (TI). 
@@ -323,11 +394,62 @@ This class estiamtes free energy with thermodynamic integration (TI).
     outputs: FreeEnergyEstimate
 """
 class TI(Estimator): 
-    def estimate(self, inputs: List[Samples]) -> FreeEnergyEstimate:
-        pass
+    def __init__(self, prov_store, integration="trapezoidal"):
+        super().__init__(name="ti_estimator", prov=prov_store)
+        self.integration = integration
+
+    def run(self, samples: list[Samples]):
+
+        samples = sorted(
+            samples,
+            key=lambda s: s.thermodynamics.lambda_value
+        )
+
+        lambdas = np.array([
+            s.thermodynamics.lambda_value for s in samples
+        ])
+
+        means = []
+        variances = []
+
+        for s in samples:
+            dhdl = s.sampled_energy["dhdl"].values
+            means.append(np.mean(dhdl))
+            variances.append(np.var(dhdl) / s.n_eff)
+
+        means = np.array(means)
+        variances = np.array(variances)
+
+        delta_g, variance = self.integrate(lambdas, means, variances)
+
+        estimate = FreeEnergyEstimate(
+            value=delta_g,
+            stderr=np.sqrt(variance),
+            estimator="TI",
+            dataset=None,
+            samples=[s.fingerprint for s in samples],
+            reference_state=samples[0].fingerprint
+        )
+
+        self.prov.add_artifact(estimate, parents=samples)
+        return [estimate]
+
+    def integrate(self, lambdas, means, variances):
+        delta_g = 0.0
+        variance = 0.0
+
+        for i in range(len(lambdas) - 1):
+            dl = lambdas[i + 1] - lambdas[i]
+
+            delta_g += 0.5 * dl * (means[i] + means[i + 1])
+            variance += (0.5 * dl) ** 2 * (
+                variances[i] + variances[i + 1]
+            )
+
+        return delta_g, variance
 
 """
-
+This artifact stores information concerning a free energy estimator prediction. 
 """
 @dataclass(frozen=True)
 class EstimatorRun(Artifact):

@@ -1,10 +1,10 @@
 from typing import List, Any
-from core.artifacts import SimulationRun, LambdaWindow
-from core.graphs import GROMACS_RBFE_DAG
-from engines.gromacs.runner import GromacsRunner
-from provenance.store import ProvenanceStore
-from workflows.nodes.gromacs.simulation_run import SimulationRunNode
-from workflows.dags.rbfe_gro import build_rbfe_dag
+from engine.src.core.artifacts import SimulationRun, LambdaWindow
+from engine.src.core.graphs import GROMACS_RBFE_DAG
+from engine.src.engines.gromacs.runner import GromacsRunner
+from engine.src.provenance.store import ProvenanceStore
+from engine.src.workflows.nodes.gromacs.simulation_run import SimulationRunNode
+from engine.src.workflows.dags.rbfe_gro import build_rbfe_dag
 
 class RBFEWorkflow:
     def __init__(self, runner: GromacsRunner, prov_store: ProvenanceStore):
@@ -23,11 +23,10 @@ class RBFEWorkflow:
         lws: List[LambdaWindow] = []
 
         for inputs, lam in zip(input_sets, lambdas):
-            dag = build_rbfe_dag(
+            dag: GROMACS_RBFE_DAG = build_rbfe_dag(
                 runner=self.runner,
                 prov_store=self.prov,
-                input_artifacts=inputs,
-                lambdas=lam
+                lam=lam
             )
             lw = dag.execute(inputs)
             lws.append(lw)
@@ -35,7 +34,7 @@ class RBFEWorkflow:
         sim_node = SimulationRunNode(
             prov_store=self.prov,
             engine="GROMACS",
-            engine_version=self.runner.detect_version()
+            engine_version=self.runner._detect_version()
         )
 
         return sim_node.execute(lws)

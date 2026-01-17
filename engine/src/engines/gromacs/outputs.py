@@ -1,5 +1,5 @@
 import numpy as np
-from core.artifacts import EnergySeries, Trajectory, FileRef
+from engine.src.core.artifacts import EnergySeries, Trajectory, FileRef
 
 def parse_xvg(
     filepath: str,  

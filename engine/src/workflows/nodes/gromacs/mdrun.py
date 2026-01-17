@@ -1,7 +1,7 @@
-from core.artifacts import FileRef
-from core.nodes import Node
-from engines.gromacs.outputs import read_trajectory
-from provenance.metadata import ArtifactMetadata
+from engine.src.core.artifacts import FileRef
+from engine.src.core.nodes import Node
+from engine.src.engines.gromacs.outputs import read_trajectory
+from engine.src.provenance.metadata import ArtifactMetadata
 
 from datetime import datetime
 

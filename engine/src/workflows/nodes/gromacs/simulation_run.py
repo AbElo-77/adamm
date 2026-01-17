@@ -1,6 +1,6 @@
 from typing import List
-from core.nodes import Node
-from core.artifacts import LambdaWindow, SimulationRun
+from engine.src.core.nodes import Node
+from engine.src.core.artifacts import LambdaWindow, SimulationRun
 from datetime import datetime
 
 class SimulationRunNode(Node):

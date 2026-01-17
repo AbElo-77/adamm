@@ -6,10 +6,10 @@ from typing import Dict, List
 
 import numpy as np
 
-from core.nodes import Node
-from core.artifacts import EnergySeries, FileRef, ThermodynamicState
-from provenance.metadata import ArtifactMetadata
-from engines.gromacs.outputs import parse_xvg
+from engine.src.core.nodes import Node
+from engine.src.core.artifacts import EnergySeries, FileRef, ThermodynamicState
+from engine.src.provenance.metadata import ArtifactMetadata
+from engine.src.engines.gromacs.outputs import parse_xvg
 
 
 class EnergyExtractionNode(Node):

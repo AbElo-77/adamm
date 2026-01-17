@@ -1,6 +1,6 @@
 from typing import List
-from core.nodes import Node
-from core.artifacts import Artifact, LambdaWindow
+from engine.src.core.nodes import Node
+from engine.src.core.artifacts import Artifact, LambdaWindow
 
 class LambdaWindowNode(Node):
     def __init__(self, prov_store, lambda_value: float):

@@ -1,5 +1,7 @@
 from dataclasses import dataclass
+import hashlib
 from typing import Dict, Optional
+import json
 
 @dataclass(frozen=True)
 class MDConfig: 
@@ -24,5 +26,32 @@ class GROMACSInputs:
     mdp: MDConfig
     structure_file: str
     topology_file: str
-    index_file: Optional[str]
-    restraint_file: Optional[str]
+    index_file: Optional[str] = None
+    restraint_file: Optional[str] = None
+
+    def fingerprint(self) -> str:
+        payload = json.dumps(
+            self.to_dict(),
+            sort_keys=True,
+            default=str
+        ).encode("utf-8")
+
+        return hashlib.sha256(payload).hexdigest()
+    
+    def to_dict(self):
+        return {
+            "mdp": {
+                "parameters": self.mdp.parameters,
+                "source_file": self.mdp.source_file
+            },
+            "structure_file": self.structure_file,
+            "topology_file": self.topology_file,
+            "index_file": self.index_file,
+            "restraint_file": self.restraint_file
+        }
+    
+@dataclass(frozen=True)
+class SystemArtifacts:
+    gro: str
+    top: str
+    tpr: Optional[str] = None

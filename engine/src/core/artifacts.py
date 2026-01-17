@@ -6,7 +6,7 @@ import hashlib
 import json
 import numpy as np
 
-from engines.gromacs.inputs import GROMACSInputs
+from engine.src.engines.gromacs.inputs import GROMACSInputs
 
 """
 This is the general wrapper class for any object producted during the ADAMM lifecylce. 
@@ -52,9 +52,9 @@ This artifact stores trajectory information.
 @dataclass(frozen=True)
 class Trajectory(Artifact):
     file_ref: FileRef
-    traj_type: str = '.trr'
     lambda_value: float
     atom_count: int
+    traj_type: str = '.trr'
     frame_count: Optional[int] = None
     time_step_ps: Optional[float] = None
 

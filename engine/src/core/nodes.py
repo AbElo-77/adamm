@@ -1,8 +1,8 @@
 from typing import List, Optional
 from datetime import datetime
-from core.artifacts import Artifact
-from provenance.store import ProvenanceStore
-from provenance.metadata import ArtifactMetadata
+from engine.src.core.artifacts import Artifact
+from engine.src.provenance.store import ProvenanceStore
+from engine.src.provenance.metadata import ArtifactMetadata
 
 
 """
@@ -23,6 +23,9 @@ class Node:
         outputs = self.run(inputs)
         self.end_time = datetime.now().isoformat()
 
+        if type(outputs) is not list:
+            outputs = [outputs]
+            
         for out in outputs:
             self.prov.add_artifact(
                 out,
@@ -30,7 +33,7 @@ class Node:
                     created_by=self.name,
                     created_at=self.start_time
                 ),
-                parents=inputs
+                parents=[inputs]
             )
         self.outputs = outputs
         return outputs
