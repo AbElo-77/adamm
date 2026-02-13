@@ -248,15 +248,17 @@ This artifact stores a diagnostic result.
 @dataclass(frozen=True)
 class DiagnosticResult(Artifact):
     name: str
-    value: Any
+    values: List[Any]
+    confidences: List[Any]
     units: Optional[str]
-    context: Dict[str, Any]
     source_run: SimulationRun
+    context: Dict[str, Any] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "name": self.name,
-            "value": self.value,
+            "value": self.values,
+            "confidences": self.confidences, 
             "units": self.units,
             "context": self.context,
             "source_run": self.source_run.fingerprint(),

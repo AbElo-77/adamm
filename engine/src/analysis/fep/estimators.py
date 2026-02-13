@@ -210,80 +210,91 @@ class SampleSelection(Node):
 inputs: set of Samples corresponding to different lambdas. 
 outputs: ReducedPotentialDataset; this is the general Estimator input. 
 """
-class ReducedPotentialBuilder(Node): 
-    def __init__(self, prov_store): 
-        super.__init__(name="reduced_potential_builder", prov=prov_store)
+class ReducedPotentialBuilder(Node):
+    def __init__(self, prov_store):
+        super().__init__(name="reduced_potential_builder", prov=prov_store)
         self.prov = prov_store
-    
-    def run(self, 
-            samples: List[Samples], 
-            trunc_policy
-        ) -> ReducedPotentialDataset:
 
-        energies = [sample.sampled_energy for sample in samples]
-        thermodynamics = [sample.thermodynamics for sample in samples]
-
+    def run(self, samples: List[Samples], trunc_policy) -> List[ReducedPotentialDataset]:
+        energies = [s.sampled_energy for s in samples]
+        thermodynamics = [s.thermodynamics for s in samples]
         assert len(energies) == len(thermodynamics)
 
-        u_kn = self.generate_matrix(energies, thermodynamics=thermodynamics)
-
-        dataset =  ReducedPotentialDataset(
-            u_kn=u_kn,
-            samples=[sample.fingerprint for sample in samples],
-            truncation_policy=trunc_policy
+        u_kn, state_of_column, n_k = self.generate_matrix(
+            energies=energies,
+            thermodynamics=thermodynamics,
         )
-        self.prov.add_artifact(dataset, parents=[samples])
 
+        dataset = ReducedPotentialDataset(
+            u_kn=u_kn,
+            state_of_column=state_of_column,
+            n_k=n_k,
+            samples=[s.fingerprint() for s in samples], 
+            truncation_policy=trunc_policy if trunc_policy is not None else {},
+        )
+
+        self.prov.add_artifact(dataset, parents=[s for s in samples])
         return [dataset]
-    
+
     def generate_matrix(
         self,
         energies: List[Dict[str, EnergySeries]],
         thermodynamics: List[ThermodynamicState],
-    ) -> np.ndarray:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 
         k_B = 0.008314462618
         K = len(thermodynamics)
 
-        n_samples_per_state = [
-            len(e["potential"].values)
-            for e in energies
-        ]
+        n_k = np.array([len(e["potential"].values) for e in energies], dtype=int)
+        N_total = int(np.sum(n_k))
 
-        N_total = sum(n_samples_per_state)
+        state_of_column = np.empty(N_total, dtype=int)
 
         u_kn = np.full((K, N_total), np.nan, dtype=np.float64)
 
         betas = np.array([
-            thermo.beta
-            if thermo.beta is not None
+            thermo.beta if getattr(thermo, "beta", None) is not None
             else 1.0 / (k_B * thermo.temperature)
             for thermo in thermodynamics
-        ])
+        ], dtype=np.float64)
 
         col_offset = 0
 
         for i, energy in enumerate(energies):
-            pot = energy["potential"].values
-            dH_fwd = energy.get("delta_h_forward")
-            dH_bwd = energy.get("delta_h_backward")
+            pot = np.asarray(energy["potential"].values, dtype=np.float64)
 
-            n_i = len(pot)
+            dH_fwd_series = energy.get("delta_h_forward")
+            dH_bwd_series = energy.get("delta_h_backward")
 
-            for n in range(n_i):
-                col = col_offset + n
+            dH_fwd = None if dH_fwd_series is None else np.asarray(dH_fwd_series.values, dtype=np.float64)
+            dH_bwd = None if dH_bwd_series is None else np.asarray(dH_bwd_series.values, dtype=np.float64)
 
-                u_kn[i, col] = betas[i] * pot[n]
+            n_i = pot.size
+            cols = np.arange(col_offset, col_offset + n_i, dtype=int)
 
-                if dH_fwd is not None and i + 1 < K:
-                    u_kn[i + 1, col] = betas[i + 1] * (pot[n] + dH_fwd.values[n])
+            state_of_column[cols] = i
 
-                if dH_bwd is not None and i - 1 >= 0:
-                    u_kn[i - 1, col] = betas[i - 1] * (pot[n] + dH_bwd.values[n])
+            u_kn[i, cols] = betas[i] * pot
+
+            if dH_fwd is not None and i + 1 < K:
+                if dH_fwd.size != n_i:
+                    raise ValueError(
+                        f"delta_h_forward length mismatch at state {i}: "
+                        f"{dH_fwd.size} vs potential length {n_i}"
+                    )
+                u_kn[i + 1, cols] = betas[i + 1] * (pot + dH_fwd)
+
+            if dH_bwd is not None and i - 1 >= 0:
+                if dH_bwd.size != n_i:
+                    raise ValueError(
+                        f"delta_h_backward length mismatch at state {i}: "
+                        f"{dH_bwd.size} vs potential length {n_i}"
+                    )
+                u_kn[i - 1, cols] = betas[i - 1] * (pot + dH_bwd)
 
             col_offset += n_i
 
-        return u_kn
+        return u_kn, state_of_column, n_k
 
 """
 This is a template estimator class to generate a free energy estimate.
@@ -310,6 +321,7 @@ This class estimates free energy with Bennet's Acceptance Ratio (BAR).
 class BAR(Estimator): 
     def __init__(self, prov_store):
         super().__init__(name="bar_estimator", prov=prov_store)
+        self.prov = prov_store
 
     def run(self, dataset: ReducedPotentialDataset):
         u_kn = dataset.u_kn
@@ -396,6 +408,7 @@ This class estiamtes free energy with thermodynamic integration (TI).
 class TI(Estimator): 
     def __init__(self, prov_store, integration="trapezoidal"):
         super().__init__(name="ti_estimator", prov=prov_store)
+        self.prov = prov_store
         self.integration = integration
 
     def run(self, samples: list[Samples]):
@@ -469,3 +482,4 @@ class EstimatorRun(Artifact):
             "iterations": self.iterations,
             "residual": self.residual,
         }
+    
