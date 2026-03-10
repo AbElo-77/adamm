@@ -4,9 +4,9 @@ This is a toolkit for analyzing simulation results with regards to convergence, 
 
 # DEVELOPMENT NOTES:
 
-- GROMACS Modulation and Convergence Pipeline (1/10 - 1/31)
+- GROMACS Modulation and Convergence Pipeline (3/10 - 3/31)
     - Other
-- API (2/1 - 2/28)
+- API (4/1 - 4/20)
     - Define PROTOCOLS inside of APIs (MDStage + MDProtocol with preprocessing, stages, lambdas, and REMD). 
     - Should take in pdb files, the various needed mdp files, forefield choice, and water model. 
         - API
@@ -14,7 +14,7 @@ This is a toolkit for analyzing simulation results with regards to convergence, 
         - [GROMACSInputs]{1-4}
         - DAG[Energy + LW]
         - Analysis Pipeline
-- Docs and Examples (3/1 - 3/15)
+- Docs and Examples (5/1 - 5/15)
     - Other
 
 # FIXES: 
