@@ -21,3 +21,4 @@ This is a toolkit for analyzing simulation results with regards to convergence, 
 
 1. Resovle naming inconsistencies after full GROMACS RBFE pipeline development; for example, GromacsRunner -> GROMACSRunner. 
 2. Update ReducedPotentialBuilder to output state_of_column and n_k values. 
+3. After debugging, set capture_output and text to **True**

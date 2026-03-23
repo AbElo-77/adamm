@@ -1,13 +1,12 @@
 from typing import List, Any
 from engine.src.core.artifacts import SimulationRun, LambdaWindow
-from engine.src.core.graphs import GROMACS_RBFE_DAG
-from engine.src.engines.gromacs.runner import GromacsRunner
+from engine.src.engines.gromacs.runner import GROMACSRunner
 from engine.src.provenance.store import ProvenanceStore
 from engine.src.workflows.nodes.gromacs.simulation_run import SimulationRunNode
-from engine.src.workflows.dags.rbfe_gro import build_rbfe_dag
+from engine.src.workflows.dags.rbfe_gro import build_rbfe_dag, GROMACS_RBFE_DAG
 
 class RBFEWorkflow:
-    def __init__(self, runner: GromacsRunner, prov_store: ProvenanceStore):
+    def __init__(self, runner: GROMACSRunner, prov_store: ProvenanceStore):
         self.runner = runner
         self.prov = prov_store
 

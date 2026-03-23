@@ -1,7 +1,11 @@
 import subprocess
 from dataclasses import dataclass
 from typing import List
-from engine.src.engines.gromacs.inputs import GROMACSInputs, GROMACSExecution, SystemArtifacts
+from engine.src.engines.gromacs.inputs import GROMACSInputs, GROMACSExecution, SystemArtifacts, MDConfig
+from engine.src.engines.directory import Directory
+
+import os
+from pathlib import Path
 
 @dataclass(frozen=True)
 class CommandResult:
@@ -10,10 +14,14 @@ class CommandResult:
     stdout: str
     stderr: str
 
-class GromacsRunner:
+class GROMACSRunner:
 
-    def __init__(self, options: GROMACSExecution):
+    def __init__(self, dir: Directory, options: GROMACSExecution):
         self.options = options
+        self.dir = dir
+
+    def get_dir(self): 
+        return self.dir
 
     def _detect_version(self) -> str:
         cmd = [self.options.gromacs_binary, "--version"]
@@ -23,19 +31,13 @@ class GromacsRunner:
         first_line = result.stdout.splitlines()[0]
         return first_line.strip()
 
-    def _execute(self, cmd: List[str]) -> CommandResult:
+    def _execute(self, cmd: List[str], input = None) -> CommandResult:
         print("Running:", " ".join(cmd))
-        proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True
-        )
-        return CommandResult(
-            command=cmd,
-            returncode=proc.returncode,
-            stdout=proc.stdout,
-            stderr=proc.stderr
-        )
+
+        if input: 
+            return self.dir.run(cmd, input)
+        else: 
+            return self.dir.run(cmd)
 
     def _check(self, result: CommandResult, step: str):
         if result.returncode != 0:
@@ -48,8 +50,9 @@ class GromacsRunner:
         output_gro: str,
         topology: str,
         forcefield: str,
-        water_model: str,
+        water_model: str
     ) -> CommandResult:
+        
         cmd = [
             self.options.gromacs_binary, "pdb2gmx",
             "-f", input_pdb,
@@ -100,7 +103,7 @@ class GromacsRunner:
         pname: str = "NA",
         nname: str = "CL",
         concentration: float = 0.15,
-        neutralize: bool = True,
+        neutralize: bool = True
     ) -> CommandResult:
         cmd = [
             self.options.gromacs_binary, "genion",
@@ -113,7 +116,7 @@ class GromacsRunner:
         ]
         if neutralize:
             cmd.append("-neutral")
-        return self._execute(cmd)
+        return self._execute(cmd, input="13\n")
 
     def run_grompp(
         self,
@@ -122,7 +125,7 @@ class GromacsRunner:
     ) -> CommandResult:
         cmd = [
             self.options.gromacs_binary, "grompp",
-            "-f", inputs.mdp,
+            "-f", inputs.mdp.source_file,
             "-c", inputs.structure_file,
             "-p", inputs.topology_file,
             "-o", output_tpr,
@@ -148,11 +151,12 @@ class GromacsRunner:
         return self._execute(cmd)
 
 def build_solvated_system(
-    runner: GromacsRunner,
+    runner: GROMACSRunner,
     pdb: str,
     forcefield: str,
     water_model: str,
     ions_mdp: str,
+    out_dir: str
 ) -> SystemArtifacts:
 
     top = "topol.top"
@@ -171,11 +175,11 @@ def build_solvated_system(
     ions_tpr = "ions.tpr"
     r = runner.run_grompp(
         GROMACSInputs(
-            mdp=ions_mdp,
+            mdp=MDConfig({"None":"None"}, source_file=ions_mdp),
             structure_file="solvated.gro",
             topology_file=top,
         ),
-        ions_tpr,
+        ions_tpr
     )
     runner._check(r, "grompp (ions)")
 
@@ -188,7 +192,7 @@ def build_solvated_system(
 
 
 def run_md_stage(
-    runner: GromacsRunner,
+    runner: GROMACSRunner,
     stage_name: str,
     mdp: str,
     system: SystemArtifacts,

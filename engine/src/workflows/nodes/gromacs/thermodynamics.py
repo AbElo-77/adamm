@@ -4,13 +4,15 @@ from engine.src.core.nodes import Node
 from engine.src.core.artifacts import ThermodynamicState, FileRef
 from engine.src.provenance.metadata import ArtifactMetadata
 
+# import MDAnalysis as mda
+
 K_BOLTZMANN = 0.008314462618
 
-
 class ThermodynamicsNode(Node):
-    def __init__(self, prov_store, lambda_value: float):
+    def __init__(self, directory, prov_store, lambda_value: float):
         super().__init__(name=f"thermodynamics_lambda_{lambda_value}",
                          prov_store=prov_store)
+        self.directory = directory
         self.lambda_value = lambda_value
 
     """
@@ -42,7 +44,10 @@ class ThermodynamicsNode(Node):
 
     def parse_tpr(self, source_file: str) -> ThermodynamicState:
 
-        dump_text = self._dump_tpr(source_file)
+        out_dir = self.directory.output_dir
+
+        dump_text = self._dump_tpr(out_dir / source_file)
+        print(dump_text.split("\n")[:1000])
 
         temperature = self._parse_temperature(dump_text)
         lambda_value = self._parse_lambda(dump_text)
@@ -67,22 +72,23 @@ class ThermodynamicsNode(Node):
             result = subprocess.run(
                 ["gmx", "dump", "-s", tpr_file],
                 check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
                 text=True,
             )
+            
             return result.stdout
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Failed to dump TPR {tpr_file}") from e
+            raise RuntimeError(f"Failed to dump TPR {tpr_file}:" + e.stderr) from e
 
-    def _parse_temperature(self, text: str) -> float:
-        match = re.search(r"ref_t\s+=\s+([0-9.]+)", text)
-        if not match:
-            raise ValueError("Temperature not found in TPR")
-        return float(match.group(1))
+    def _parse_temperature(self, text: str) -> list:
+        matches = re.findall(r"ref-t:\s+\{?([\s\d\.]+)\}?", text)
+        if not matches:
+            raise ValueError("Temperature (ref-t) not found")
+
+        return [float(x) for x in matches[0].split()]
 
     def _parse_lambda(self, text: str) -> float:
-        match = re.search(r"init_lambda_state\s+=\s+(\d+)", text)
+        match = re.search(r"init-lambda-state\s+=\s+(\d+)", text)
         if not match:
             raise ValueError("Lambda state index not found")
 
@@ -98,18 +104,26 @@ class ThermodynamicsNode(Node):
     def _parse_softcore(self, text: str) -> dict:
         params = {}
         for key in ["sc_alpha", "sc_power", "sc_sigma"]:
-            match = re.search(fr"{key}\s+=\s+([0-9.eE+-]+)", text)
+            match = re.search(fr"{key}\s=\s+([0-9.eE+-]+)", text)
             if match:
                 params[key] = float(match.group(1))
         return params
 
     def _parse_constraints(self, text: str) -> str:
-        match = re.search(r"constraints\s+=\s+(\w+)", text)
+        match = re.search(r"constraint-algorithm\s+=\s+(\w+)", text)
         return match.group(1) if match else "none"
 
     def _parse_ensemble(self, text: str) -> str:
-        if "parrinello-rahman" in text.lower():
+        pcoupl_match = re.search(r"pcoupl\s+=\s+(\w+)", text, re.IGNORECASE)
+        pcoupl = pcoupl_match.group(1).lower() if pcoupl_match else "no"
+        
+        if pcoupl != "no":
             return "NPT"
-        if "nose-hoover" in text.lower():
+        
+        tcoupl_match = re.search(r"tcoupl\s+=\s+(\w+)", text, re.IGNORECASE)
+        tcoupl = tcoupl_match.group(1).lower() if tcoupl_match else "no"
+        
+        if tcoupl != "no":
             return "NVT"
-        return "unknown"
+        
+        return "NVE"

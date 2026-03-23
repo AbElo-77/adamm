@@ -1,12 +1,12 @@
 from engine.src.core.nodes import Node
 from engine.src.core.artifacts import FileRef
-from engine.src.engines.gromacs.runner import GromacsRunner
+from engine.src.engines.gromacs.runner import GROMACSRunner
 from engine.src.provenance.metadata import ArtifactMetadata
 
 class GromppNode(Node):
     def __init__(self, runner, prov_store, lambda_value: float):
         super().__init__(name=f"grompp_lambda_{lambda_value}", prov_store=prov_store)
-        self.runner: GromacsRunner = runner
+        self.runner: GROMACSRunner = runner
         self.lambda_value = lambda_value
 
     """

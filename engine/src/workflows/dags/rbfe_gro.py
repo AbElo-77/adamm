@@ -34,7 +34,6 @@ class GROMACS_RBFE_DAG(DAG):
                     output = node.execute(initial_input)
                 else:
                     parent_outputs = [artifacts[p] for p in parents]
-                    print(parent_outputs)
                     output = node.execute(parent_outputs)
 
                 if len(executed_nodes) == len(self.nodes):
@@ -58,7 +57,7 @@ def build_rbfe_dag(runner, prov_store, lam):
     dag = GROMACS_RBFE_DAG()
 
     grompp = GromppNode(runner, prov_store, lam)
-    thermo = ThermodynamicsNode(prov_store,  lam)
+    thermo = ThermodynamicsNode(runner.get_dir(), prov_store, lam)
     mdrun = MdrunNode(runner, prov_store, lam)
     energy = EnergyExtractionNode(prov_store, lam)
     lw = LambdaWindowNode(prov_store, lam)

@@ -107,7 +107,7 @@ This artifact stores thermodynamic information from the *.tpr file
 """    
 @dataclass(frozen=True)
 class ThermodynamicState(Artifact):
-    temperature: float
+    temperature: list
     beta: float
     lambda_value: float
     ensemble: str
