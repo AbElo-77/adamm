@@ -4,6 +4,8 @@ This is a toolkit for analyzing simulation results with regards to convergence, 
 
 # DEVELOPMENT NOTES:
 
+- Integrate DuckDB for provenance, **alongside** local cache.
+
 - GROMACS Modulation and Convergence Pipeline (3/10 - 3/31)
     - Other
 - API (4/1 - 4/20)

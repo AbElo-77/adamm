@@ -4,7 +4,7 @@ from engine.src.core.nodes import Node
 from engine.src.core.artifacts import ThermodynamicState, FileRef
 from engine.src.provenance.metadata import ArtifactMetadata
 
-# import MDAnalysis as mda
+import MDAnalysis as mda
 
 K_BOLTZMANN = 0.008314462618
 
